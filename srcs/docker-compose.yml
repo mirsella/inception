@@ -1,0 +1,132 @@
+version: '3.8'
+
+services:
+  nginx:
+    container_name: nginx
+    build: ./requirements/nginx
+    depends_on:
+      - wordpress
+      - adminer
+      - static
+    ports:
+      - 443:443
+    volumes:
+      - data_wordpress:/var/www/html
+    restart: always
+    networks:
+      - inception-network
+
+  mariadb:
+    container_name: mariadb
+    build:
+      context: ./requirements/mariadb
+      args:
+        MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+        MYSQL_USER: ${MYSQL_USER}
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    volumes:
+      - data_mariadb:/var/lib/mysql
+    networks:
+      - inception-network
+    restart: always
+    env_file:
+      - .env
+
+  wordpress:
+    container_name: wordpress
+    depends_on:
+      - mariadb
+      - redis
+    build:
+      context: ./requirements/wordpress
+      args:
+        MYSQL_USER: ${MYSQL_USER}
+        MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - data_wordpress:/var/www/html
+    networks:
+      - inception-network
+
+  redis:
+    container_name: redis
+    build: ./requirements/bonus/redis
+    ports:
+      - '6379:6379'
+    restart: always
+    env_file:
+      - .env
+    volumes:
+      - data_wordpress:/var/www/html
+    networks:
+      - inception-network
+
+  ftp:
+    build:
+      context: ./requirements/bonus/ftp
+      args:
+        FTP_USER: ${FTP_USR}
+        FTP_PASS: ${FTP_PWD}
+    container_name: ftp
+    ports:
+      - "21:21"
+      - "20:20"
+      - "40000-40100:40000-40100"
+    restart: always
+    volumes:
+      - "data_wordpress:/var/www/html"
+    networks:
+      - inception-network
+    env_file:
+      .env
+
+  adminer:
+    build: ./requirements/bonus/adminer
+    restart: always
+    depends_on:
+      - mariadb
+    expose:
+      - "9000"
+    networks:
+      - inception-network
+
+  static:
+    container_name: static
+    build: ./requirements/bonus/static
+    restart: always
+    expose:
+      - "8080:8080"
+    networks:
+      - inception-network
+
+  wssh:
+    container_name: wssh
+    restart: always
+    build: 
+      context: ./requirements/bonus/wssh
+      args:
+        FTP_PASS: ${FTP_PWD}
+    expose:
+      - "8888:8888"
+    networks:
+      - inception-network
+
+volumes:
+    data_mariadb:
+      driver: local
+      driver_opts:
+        type: none
+        device: "${HOME}/data/mysql"
+        o: bind
+    data_wordpress:
+      driver: local
+      driver_opts:
+        type: none
+        device: "${HOME}/data/wordpress"
+        o: bind
+
+networks:
+  inception-network:
+    driver: bridge
